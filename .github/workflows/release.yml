@@ -5,25 +5,40 @@ name: release
 
 on:
   release:
-    types: [created, published] # 表示在创建新的 Release 时触发
+    types: [published] # 表示在创建新的 Release 时触发
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
+  release:
     strategy:
       matrix:
-        goos: [linux, windows, darwin] # 需要打包的系统
-        goarch: [amd64, arm64] # 需要打包的架构
-        exclude: # 排除某些平台和架构
-          - goarch: arm64
-            goos: windows
+        platform: [ ubuntu-latest ]
+        go-version: [ '1.21' ]
+    name: Release
+    runs-on: ${{ matrix.platform }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: wangyoucao577/go-release-action@v1.30
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }} # 一个默认的变量，用来实现往 Release 中添加文件
-        goos: ${{ matrix.goos }}
-        goarch: ${{ matrix.goarch }}
-        goversion: 1.21 # 可以指定编译使用的 Golang 版本
-        binary_name: "stm" # 可以指定二进制文件的名称
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        
+      - name: Install dependencies
+        run: |
+          sudo snap install zig --classic --beta
+          docker pull crazymax/xgo:latest
+          go install github.com/crazy-max/xgo@latest
+          sudo apt install upx
+
+      - name: Build
+        run: |
+          bash build.sh release
+
+      - name: Upload assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/compress/*
+          prerelease: false
